@@ -1,0 +1,17 @@
+This is a little library I decided to build because I got tired of
+people waiting for other people to give them their APRS code.
+Sometimes wait times would reach weeks long.
+
+I think this is a much more elegant solution. Automated checking of whether 
+the requestee is in the FCC database, and if their license is current.
+Less hassle for humans, less pissoff-ery for the person needing their code. :)
+
+See example.py (or just run it) for example.
+I just made it to have a convenient frontend for the tools.
+
+
+
+Author's note:
+
+	I'm basically a newbie to python, so if you'd like to help, feel free!
+Just try to explain changes (in comments) instead of telling me I'm an idiot :)
