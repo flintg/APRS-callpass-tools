@@ -1,12 +1,27 @@
 #!/usr/bin/env python
+	
+	# APRS-IS callsign passcode generation web interface library
+    # Copyright (C) 2011 "zamabe" zamabe@inderagamono.net
+	#
+	# This program is free software: you can redistribute it and/or modify
+	# it under the terms of the GNU General Public License as published by
+	# the Free Software Foundation, either version 3 of the License, or
+	# (at your option) any later version.
+	#
+	# This program is distributed in the hope that it will be useful,
+	# but WITHOUT ANY WARRANTY; without even the implied warranty of
+	# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	# GNU General Public License for more details.
+	#
+    # You should have received a copy of the GNU General Public License
+    # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
-import urllib
-import urlparse
-import time
-import socket
+import os, time
+import urllib, urlparse
+import socket, cgi
 
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
+from SocketServer import ThreadingMixIn
 from subprocess import Popen, PIPE
 
 try:
@@ -32,7 +47,7 @@ amateurs_only = False
 
 # This check is to determine if the tools for code
 # generating are installed. Do this check.
-# You either know what you need installed or you don't.
+# >> You either know what you need installed or you don't.
 try:
 	proc = Popen(['callpass', 'bob'], stdout=PIPE, stderr=PIPE)
 	proc.wait()
@@ -113,10 +128,14 @@ def get_code(callsign):
 	return (True, code)
 
 
+
+files = {} # global here so subclasses can access it.
 class web_daemon:
 	
 	default_port = 8050
+	port = 0
 	files = {}
+	required_files = ['index.html', 'code.html', 'error.html', 'style.css']
 	
 	pid = str(os.getpid())
 	pidfile = "/tmp/callpass_tools.pid"
@@ -129,78 +148,78 @@ class web_daemon:
 		'''
 		
 		# Introduction
-		print
 		print 'Starting APRS callpass web interface',
 		
-		# Clean up the port.
-		# Make sure it's valid.
+		# Make sure the port is valid.
 		if not port and not port == 0:
-			port = self.default_port
-			print 'on port', port
+			self.port = self.default_port
+			print 'on default port', self.port
+		elif not self.validate_port(port):
+			self.port = self.default_port
+			print
+			raise UserWarning('Port out of range!')
+			print ' ` Given port was illegal, defaulting to %d!' % (self.default_port)
 		else:
-			# We got passed a port.
-			# Make sure it's an integer.
-			try:
-				port = int(port)
-			except ValueError:
-				port = self.default_port
-				print; print ' ` Given port was not an integer, defaulting to %d!' % (port)
-			# It's an integer.
-			# Make sure it's not out of range.
-			else:
-				if port > 65535:
-					port = self.default_port
-					print
-					raise UserWarning('Port out of range!')
-					print ' ` Given port was out of range, defaulting to %d!' % (port)
-				else:
-					print 'on port', port
+			print 'on port', port
 		
-		
-		
-		# Make sure the bare minimum exists.
-		# These are what come by default, anyway.
-		required_files = ['index.html', 'code.html', 'error.html', 'style.css']
-		bad_files = []
-		
-		for file in required_files:
-			if not os.path.exists( os.path.join(os.curdir, file) ):
-				bad_files.append(file)
-		if len(bad_files):
-			print ' % Required file(s) are missing!'
-			for file in bad_files:
-				print "\t%s" % file
+		# Probe the port to see if we can bind it.
+		if not self.probe_port(self.port):
+			print ' ~ Port unavailable! Cannot continue!'
 			return None
 		
+		# Load the files into memory
+		if not self.required_files_check()\
+		or not self.load_files():	return None
+		else:						print 'Files loaded'
 		
+		print 'Note: if you customize, change, add or delete files, you'
+		print '      will have to restart this daemon or send a SIGHUP! (WIP)'
 		
-		# All of the html, css, and js files will be read into RAM.
-		# This could be a nasty discussion, but I figure if you're
-		# going to read the file, the kernel is just going to load
-		# it into the RAM IO buffers, so lets keep it in memory to
-		# avoid using I/O or possibly waiting for disk priority.
-		# Besides, these files barely manage half a MB alone.
-		
-		for file in required_files:
-			try:
-				f = open(file)
-				self.files[file] = f.read()
-				f.close()
-			except:
-				bad_files.append(file)
-		if len(bad_files):
-			print ' % Error opening required file(s)!'
-			for file in bad_files:
-				print "\t%s" % file
-			return None
-		
-		print ' ` Please note, if you customize or change the'
-		print '   files, you will have to restart this daemon!'
+		# Start up the server, let it do what it's supposed to :)
+		server = self.APRSCallpassServer(('0.0.0.0', self.port), self.APRSRequestHandler)
 		
 		# Fork into the background to become a daemon!
-		print
+		print 'Attempting to fork into background'
 		daemon.daemonize(self.pidfile)
 		
+		# Everything is set
+		try:
+			server.serve_forever()
+		except KeyboardInterrupt:
+			# Not likely, but prettier when debugging
+			print "\nServer shutdown!"
+		
+		# Remove pidfile once the server comes down
+		try:
+			os.remove(self.pidfile)
+		except OSError:
+			# This only fails if you ^C.
+			# Since this is a daemon,
+			# it usually gets killed.
+			pass
+		
+		# Ze end
+		return None
+	
+	
+	
+	def validate_port(self, port):
+		# We got passed a port.
+		# Make sure it's an integer.
+		try:
+			port = int(port)
+		except ValueError:
+			return False
+		# It's an integer.
+		# Make sure it's not out of range.
+		else:
+			if port > 65535:
+				return False
+		
+		return True
+	
+	
+	def probe_port(self, port):
 		# Probe the port to see if we can bind it.
 		# NOTE:
 		#	This is a race condition.
@@ -216,97 +235,165 @@ class web_daemon:
 			s.bind(('0.0.0.0', port))
 			s.close()
 		except socket.error:
-			print ' ~ Port unavailable! Cannot continue!'
-			exit()
+			# Something is running on that port, make
+			# sure it's not an instance of this server
+			# daemon check exits for us if it's ours.
+			daemon.checkPID(self.pidfile)
+			return False
+		return True
+	
+	
+	
+	def required_files_check(self):
+		# Make sure the bare minimum exists.
+		# These are what come by default, anyway.
 		
+		bad_files = []
 		
-		# start up the server, let it do what it's supposed to :)
-		server = HTTPServer(('0.0.0.0', port), self.APRSRequestHandler)
-		server.serve_forever()
+		for file in self.required_files:
+			if not os.path.exists( os.path.join(os.curdir, file) ):
+				bad_files.append(file)
 		
-		os.remove(self.pidfile)
+		if len(bad_files):
+			print ' % Required file(s) are missing!'
+			for file in bad_files:
+				print "\t%s" % file
+			return False
 		
+		return True
+	
+	
+	def load_files(self):
+		# All of the html, css, and js files will be read into RAM.
+		# This could be a nasty discussion, but I figure if you're
+		# going to read the file, the kernel is just going to load
+		# it into the RAM IO buffers, so lets keep it in memory to
+		# avoid using I/O or possibly waiting for disk priority.
+		# Besides, these files barely manage half a MB alone.
 		
+		global files
+		files = {} # reset for SIGHUP
+		bad_files = []
+		file_formats = ['html', 'css', 'js']
+
+		for filename in os.listdir('.'):
+			if len(filename.rsplit('.', 1)) < 2 or filename.rsplit('.', 1)[1].lower() not in file_formats:
+				continue
+			try:
+				f = open(filename)
+				files[filename] = f.read()
+				f.close()
+			except:
+				bad_files.append(filename)
+		
+		if len(bad_files):
+			print ' % Error opening file(s)!'
+			for file in bad_files:
+				print "\t%s" % file
+			return False
+		
+		return True
+	
+	
+	class APRSCallpassServer(ThreadingMixIn, HTTPServer):
+		pass
 
 	class APRSRequestHandler(BaseHTTPRequestHandler):
 		
+		global files
+		import urllib
+		media_types = { 'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript' }
+		
 		def do_GET(self):
+			
 			parsed_path = urlparse.urlparse(self.path)
-			message = '\n'.join([
-					'CLIENT VALUES:',
-					'client_address=%s (%s)' % (self.client_address,
-												self.address_string()),
-					'command=%s' % self.command,
-					'path=%s' % self.path,
-					'real path=%s' % parsed_path.path,
-					'query=%s' % parsed_path.query,
-					'request_version=%s' % self.request_version,
-					'',
-					'SERVER VALUES:',
-					'server_version=%s' % self.server_version,
-					'sys_version=%s' % self.sys_version,
-					'protocol_version=%s' % self.protocol_version,
-					'',
-					])
+			path = parsed_path.path
+			
+			if path == '/':	path = '/index.html'
+			if path[1:] in ['code.html', 'error.html']\
+			or path[1:] not in files:
+				self.send_response(301)
+				self.send_header('Location', '/')
+				self.end_headers()
+				return
+				
 			self.send_response(200)
+			self.send_header( 'Content-type', self.media_types[path.rsplit('.', 1)[1]] )
 			self.end_headers()
-			self.wfile.write(message)
+			self.wfile.write(files[path[1:]])
 			return
 		
+		
 		def do_POST(self):
+			
 			parsed_path = urlparse.urlparse(self.path)
-			message = '\n'.join([
-					'CLIENT VALUES:',
-					'client_address=%s (%s)' % (self.client_address,
-												self.address_string()),
-					'command=%s' % self.command,
-					'path=%s' % self.path,
-					'real path=%s' % parsed_path.path,
-					'query=%s' % parsed_path.query,
-					'request_version=%s' % self.request_version,
-					'',
-					'SERVER VALUES:',
-					'server_version=%s' % self.server_version,
-					'sys_version=%s' % self.sys_version,
-					'protocol_version=%s' % self.protocol_version,
-					'',
-					]) 
+			path = parsed_path.path
+			
+			ctype, pdict = cgi.parse_header(self.headers.getheader('content-type'))
+			if ctype == 'multipart/form-data':
+				postvars = cgi.parse_multipart(self.rfile, pdict)
+			elif ctype == 'application/x-www-form-urlencoded':
+				length = int(self.headers.getheader('content-length'))
+				postvars = cgi.parse_qs(self.rfile.read(length), keep_blank_values=1)
+			else:
+				postvars = {}
+			
+			if not path == "/getcode" \
+			or 'callsign' not in postvars.keys():
+				self.send_response(301)
+				self.send_header('Location', '/')
+				self.end_headers()
+				return
+			
 			self.send_response(200)
+			self.send_header('Content-type', 'text/html')
 			self.end_headers()
-			self.wfile.write(message)
+			
+			status, message = get_code(postvars['callsign'][0])
+			#self.wfile.write( files['error.html'] )
+			
+			# Good
+			if status:
+				self.wfile.write( files['code.html'].replace('%unpopulated%', str(message)) )
+			
+			# Bad
+			else:
+				self.wfile.write( files['error.html'].replace('%unpopulated%', message) )
+			
 			return
-
 
 
 
 if __name__ == '__main__':
-
-	import sys
-
-	usage = """\nUsage:
 	
+	import sys
+	
+	# Assume the user knows nothing.
+	# Which is probably true *giggle*
+	usage = """\nUsage:\n
 	$ python """ + __file__ + """ [-r] <CALLSIGN>
 		<callsign> must be an FCC recognized
-		callsign! (no dashes or designators)
-	
+		callsign! (no dashes or designators)\n
 	$ python """ + __file__ + """ [-r] -d [port]
 		This will start the callpass web interface!
-		* Port is optional. Defaults to """ +str(web_daemon.default_port)+ """.
-	
+		* Port is optional. Defaults to """ +str(web_daemon.default_port)+ """.\n
 	* An unfortunate inclusion; The -r flag will
 	  restrict users of the application and deny
 	  any non-amateurs their APRS-IS code.\n"""
 	
 	
-	# Strip the restrict flag
-	# Set it's corresponding trigger
+	# Check for restriction, activate it.
 	if len(sys.argv) > 1 and '-r' in sys.argv:
 		amateurs_only = True
 		sys.argv.pop(sys.argv.index('-r'))
+		try:
+			from termcolor import colored
+		except ImportError:
+			def colored(text, color): return text
+		print "\n", colored('*** WARNING:', 'red'), "Amateur operators (only) restriction enabled.", "\n"
 	
 	
-	# If there's nothing there, or it's something to be
-	# paranoid about, definitely disregard it and go to start.
+	# User provided no arguments or invalid arguments.
 	if len(sys.argv) < 2 or not isinstance(sys.argv[1], str):
 		print usage
 		sys.exit()
@@ -314,13 +401,11 @@ if __name__ == '__main__':
 	
 	# If user calls for a daemon, prepare it.
 	if sys.argv[1] == '-d':
-		# that's probably a port on the end
-		# start it in the correct context.
+		# An argument after the flag is assumed to be a port.
 		if len(sys.argv) > 2:	daemon = web_daemon(sys.argv[2])
 		else:					daemon = web_daemon()
 	
-	# No daemon called, for, but they left a present
-	# If it's alnum, assume callsign.
+	# If the argument is alnum, assume callsign.
 	elif sys.argv[1].isalnum():
 		
 		affirmative, message = get_code(sys.argv[1])
@@ -328,7 +413,8 @@ if __name__ == '__main__':
 			print 'Error:', message
 		else:
 			print 'Your APRS-IS code is', message
-			
 	
+	# They did something wrong.
+	# [Redundant] Education time!
 	else:
 		print usage

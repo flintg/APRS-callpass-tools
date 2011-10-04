@@ -1,13 +1,58 @@
 This is a little library I decided to build because I got tired of
 people waiting for other people to give them their APRS code.
 Sometimes wait times would reach weeks long.
+This is a much more elegant solution.
 
-I think this is a much more elegant solution. Automated checking of whether 
-the requestee is in the FCC database, and if their license is current.
+Abilities:
+Prevents you from spawning more than one instance. Use any port you like.
+Searches callsign against the FCC database.
+In the case of multiple returns, sifts through them for the callsign entry.
+Checks the license status and reacts accordingly.
+The callpass is not generated unless the license is current.
+A mode to restrict the service to amateurs only, but this is something I
+  never wanted to put any effort towards. It seems ridiculous. But it works. :(
+  My two cents: You won't be bothered by these people emailing you, what's the harm.
+
+
 Less hassle for humans, less pissoff-ery for the person needing their code. :)
 
-See example.py (or just run it) for example.
-I just made it to have a convenient frontend for the tools.
+So, this does the basic job.
+It removes the email system, and eliminates wait time.
+You want it? It's yours.
+
+---------------------------------------------------------------
+Usage:
+
+        $ python callpass_tools.py [-r] <CALLSIGN>
+                <callsign> must be an FCC recognized
+                callsign! (no dashes or designators)
+
+        $ python callpass_tools.py [-r] -d [port]
+                This will start the callpass web interface!
+                * Port is optional. Defaults to 8050.
+
+        * An unfortunate inclusion; The -r flag will
+          restrict users of the application and deny
+          any non-amateurs their APRS-IS code.
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+
+
+REQUIREMENTS:
+	Python daemon module. `sudo pip install daemon` or `sudo easy_install daemon`
+		Manual install: http://pypi.python.org/pypi/daemon
+	The tool for generating the aprs-is callsign passcodes.
+		You either know what it is or you don't.
+
+TODO:
+	* The default code.html and error.html files need a bit better text styling.
+	* A SIGHUP won't actually refresh the file cache yet.
+	* Doesn't currently identify cancelled licenses because I don't know if
+		that has a consistent entry in the FCC database
+	* Switch to using QRZ database API. It's already amamteur's only.
+		It's not as current, but it's faster and has more internationals.
 
 
 
@@ -15,3 +60,12 @@ Author's note:
 
 	I'm basically a newbie to python, so if you'd like to help, feel free!
 Just try to explain changes (in comments) instead of telling me I'm an idiot :)
+
+
+=======================================================================================
+
+I've been advised against using HTTPServer for this task, but with the 
+ThreadingMixIn it can more than handle the measley amount of requests it will get.
+
+There is also concern about the idea of keeping the served files in memory.
+Personally, I don't think this is a problem. They're less than half a meg, shutup.
