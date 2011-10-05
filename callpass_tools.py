@@ -105,7 +105,7 @@ def get_code(callsign):
 	
 	# Validation returns likewise failure reasons
 	validate_result = validate_callsign(callsign)
-	if not validate_result['status']: return result
+	if not validate_result['status']: return validate_result
 	
 	# Call the external program, wait for it to complete, return findings.
 	proc = Popen(['callpass', callsign], stdout=PIPE); proc.wait()
@@ -269,6 +269,7 @@ class web_daemon:
 				f = open(file_to_get)
 				fdata = f.read()
 				f.close()
+				fdata = str(fdata)
 			
 			except:
 				self.send_response(503)
@@ -347,7 +348,10 @@ class web_daemon:
 					
 					post_file = self.files( 'code.html' if result['status'] else 'error.html' )
 					if not post_file == False:
-						self.wfile.write( post_file.replace('%unpopulated%', result['callpass'] if result['status'] else result['reason'] ) )
+						
+						# Do the operation on the file, send it out
+						post_file = post_file.replace( "%unpopulated%", str(result['callpass']) if result['status'] else result['reason'] )
+						self.wfile.write( post_file )
 				
 				# Their POST request was incorrect.
 				# Send them away to the front of the server.
