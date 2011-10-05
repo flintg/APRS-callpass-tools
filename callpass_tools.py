@@ -19,6 +19,7 @@
 import os, time
 import urllib, urlparse
 import socket, cgi
+import signal
 
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from SocketServer import ThreadingMixIn
@@ -63,308 +64,316 @@ except:
 
 
 def validate_callsign(callsign):
-	'''
-	Checks the FCC database via HTTP API for the given callsign.
-	If exists, checks the expiration date.
 	
-	If valid, returns (True)
-	If invalid, returns (False, reason)
-	'''
-	
+	# Fetch data from the FCC. Subject to change.
 	api_url = 'http://data.fcc.gov/api/license-view/basicSearch/getLicenses?format=json&searchValue='
 	page = urllib.urlopen( api_url+urllib.quote(callsign) ); data = page.read(); page.close()
 	data = json.loads(data)
 	license = False
 	
+	# Something isn't okay. Just relay that.
 	if not str(data['status']).upper() == 'OK':
-		errcode = data['Errors']['Err'][0]['code']
-		if errcode == 110:
-			errmsg = 'Callsign could not be found!'
-		else:
-			errmsg = data['Errors']['Err'][0]['msg']
-		return (False, errmsg)
+		return { 'status': False, 'reason': '[FCC] '+ data['Errors']['Err'][0]['msg'] }
 	
-	
+	# Search through them for the license we're looking for.
 	for lic_entry in data['Licenses']['License']:
-		if not str(lic_entry['callsign']).upper() == str(callsign).upper():
-			continue
-		license = lic_entry
-		break
+		# A match! Get out of the loop, record the license.
+		if str(lic_entry['callsign']).upper() == str(callsign).upper():
+			license = lic_entry
+			break
+	
+	# If we didn't find it, that's all.
 	if not license:
-		return (False, 'Callsign could not be found!')
+		return { 'status': False, 'reason': 'Callsign could not be found!' }
 	
+	# :( If amateurs_only restriction is set, check out the license.
 	if amateurs_only and not str(license['serviceDesc']).lower() == 'amateur':
-		return (False, 'This service has been restricted to amateur operators.')
+		return { 'status': False, 'reason': 'This service has been restricted to amateur operators.' }
 	
-	expdate = license['expiredDate'].split('/')
-	expdate = int(expdate[2]+expdate[0]+expdate[1])
+	# Turn dates into YYYYMMDD - comparable integers
+	expdate  = license['expiredDate'].split('/')
+	expdate  = int(expdate[2]+expdate[0]+expdate[1])
 	currdate = int(time.strftime('%Y%m%d', time.gmtime(time.time())))
-	# Dates: YYYYMMDD
-	# comparable integers
-	if currdate > expdate:
-		return (False, 'Your license is expired!')
 	
-	return (True,)
+	if currdate > expdate:
+		return { 'status': False, 'reason': 'Your license is expired!' }
+	
+	return { 'status': True }
 
 
 def get_code(callsign):
-	'''
-	Validates the callsign then calculates the APRS-IS code.
 	
-	If successful, will return a tuple of (True, (int)passcode)
-	If failure occurs, will return tuple (False, (str)reason)
-	'''
-	
+	# Validation returns likewise failure reasons
 	result = validate_callsign(callsign)
-	if result[0] is not True:
-		return result
+	if not result['status']: return result
 	
-	proc = Popen(['callpass', callsign], stdout=PIPE)
-	proc.wait()
+	# Call the external program, wait for it to complete, return findings.
+	proc = Popen(['callpass', callsign], stdout=PIPE); proc.wait()
 	result = proc.stdout.read()
 	result = result.rsplit(' ', 1)
 	code = int(result[1])
 	
-	return (True, code)
+	return { 'status': True, 'callpass': code }
 
 
 
-files = {} # global here so subclasses can access it.
 class web_daemon:
 	
+	default_ip = '0.0.0.0'
 	default_port = 8050
+	
+	ip = '0.0.0.0'
 	port = 0
-	files = {}
-	required_files = ['index.html', 'code.html', 'error.html', 'style.css']
 	
 	pid = str(os.getpid())
 	pidfile = "/tmp/callpass_tools.pid"
 	
 	
-	def __init__(self, port=None):
-		'''
-		Starts the callpass program as an HTTP server, then forks into the background.
-		* Providing a port is optional.
-		'''
+	def __init__(self, ip=default_ip, port=default_port):
 		
-		# Introduction
-		print 'Starting APRS callpass web interface',
+		# Check the IP
+		if self.validate_ip(ip):	self.ip = ip
+		else: self.ip = self.default_ip; print '*** WARNING: Given IP was illegal. Defaulting to', self.ip
 		
-		# Make sure the port is valid.
-		if not port and not port == 0:
-			self.port = self.default_port
-			print 'on default port', self.port
-		elif not self.validate_port(port):
-			self.port = self.default_port
-			print
-			raise UserWarning('Port out of range!')
-			print ' ` Given port was illegal, defaulting to %d!' % (self.default_port)
-		else:
-			print 'on port', port
+		# Check the ports
+		if self.validate_port(port): self.port = port
+		else: self.port = self.default_port; print '*** WARNING: Given port was illegal, defaulting to', self.port
 		
-		# Probe the port to see if we can bind it.
-		if not self.probe_port(self.port):
-			print ' ~ Port unavailable! Cannot continue!'
+		# Tell them where the server should spawn
+		print 'Starting APRS callpass web interface on', ( str(self.ip) +':'+ str(self.port) )
+		
+		# Test bind
+		if not self.probe_bind(self.ip, self.port):
+			print '*** ERROR: Could not bind to IP and port! Cannot continue!'
 			return None
 		
-		# Load the files into memory
-		if not self.load_files():	return None
-		else:						print 'Files loaded'
-		
-		print 'Note: if you customize, change, add or delete files, you'
-		print '      will have to restart this daemon or send a SIGHUP! (WIP)'
-		
-		# Start up the server, let it do what it's supposed to :)
-		server = self.APRSCallpassServer(('0.0.0.0', self.port), self.APRSRequestHandler)
-		
-		# Fork into the background to become a daemon!
-		print 'Attempting to fork into background'
-		daemon.daemonize(self.pidfile)
-		
-		# Everything is set
-		try:
-			server.serve_forever()
-		except KeyboardInterrupt:
-			# Not likely, but prettier when debugging
-			print "\nServer shutdown!"
+		# Start the server, daemonize, then activate its server loop
+		# The KeyboardInterrup exception just looks better when debugging
+		print 'Forking server into background'
+		server = self.APRSCallpassServer((self.ip, self.port), self.APRSRequestHandler)
+		# daemon.daemonize(self.pidfile) # debug
+		try:	server.serve_forever()
+		except KeyboardInterrupt:	print "\nServer shutdown!"
 		
 		# Remove pidfile once the server comes down
-		try:
-			os.remove(self.pidfile)
-		except OSError:
-			# This only fails if you ^C.
-			# Since this is a daemon,
-			# it usually gets killed.
-			pass
-		
-		# Ze end
+		try:			os.remove(self.pidfile)
+		except OSError:	pass
 		return None
 	
 	
+	def __del__(self):
+		# Redundancy
+		
+		# Remove pidfile once the server comes down
+		try:			os.remove(self.pidfile)
+		except OSError:	pass
+		return None
+	
+	
+	def validate_ip(self, ip):
+		
+		# Make sure it's a string.
+		try:				ip = str(ip)
+		except ValueError:	return False
+		
+		# Does it have four octets
+		ip = ip.split('.')
+		if not len( ip ) == 4: return False
+		
+		# Are the octets within range
+		for octet in ip:
+			try:
+				if int(octet) > 255 or int(octet) < 0:
+					return False
+			except ValueError:	return False
+		
+		# Nothing to complain about
+		return True
+	
 	
 	def validate_port(self, port):
-		# We got passed a port.
+		
 		# Make sure it's an integer.
-		try:
-			port = int(port)
-		except ValueError:
-			return False
-		# It's an integer.
+		try:				port = int(port)
+		except ValueError:	return False
+		
 		# Make sure it's not out of range.
-		else:
-			if port > 65535:
-				return False
-		
+		if port > 65535:	return False
 		return True
 	
 	
-	def probe_port(self, port):
+	def probe_bind(self, ip, port):
+		
 		# Probe the port to see if we can bind it.
+		# 
 		# NOTE:
-		#	This is a race condition.
+		#	Reliance on this creates a race condition.
 		#	Just because it's available right now,
-		#	doesn't mean it will be when we bind to
-		#	it. The only other option is to find
-		#	that out when we bind to it. So we're
-		#	not changing the failing behavior, just
-		#	trying to avoid it politely.
+		#	doesn't mean it will be when we bind.
+		
 		try:
-			s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-			s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-			s.bind(('0.0.0.0', port))
-			s.close()
+				s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+				s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+				s.bind((ip, port))
+				s.close()
+				return True
+		
 		except socket.error:
-			# Something is running on that port, make
-			# sure it's not an instance of this server
-			# daemon check exits for us if it's ours.
-			daemon.checkPID(self.pidfile)
-			return False
-		return True
+				# Couldn't bind, the port is inhabited
+				# daemon check exits for us if it's ours.
+				daemon.checkPID(self.pidfile)
+		
+		return False
 	
-	
-	
-	def required_files_check(self):
-		# Make sure the bare minimum exists.
-		# These are what come by default, anyway.
-		
-		bad_files = []
-		
-		for file in self.required_files:
-			if not os.path.exists( os.path.join(os.curdir, file) ):
-				bad_files.append(file)
-		
-		if len(bad_files):
-			print ' % Required file(s) are missing!'
-			for file in bad_files:
-				print "\t%s" % file
-			return False
-		
-		return True
-	
-	
-	def load_files(self):
-		
-		# If the files don't exist, then we can't read them.
-		if not self.required_files_check(): return False
-		
-		# All of the html, css, and js files will be read into RAM.
-		# This could be a nasty discussion, but I figure if you're
-		# going to read the file, the kernel is just going to load
-		# it into the RAM IO buffers, so lets keep it in memory to
-		# avoid using I/O or possibly waiting for disk priority.
-		# Besides, these files barely manage half a MB alone.
-		
-		global files
-		
-		# except this is a SIGHUP, don't erase something that's working
-		# make a temporary cache and dump it into the real on when ready
-		new_files = {}; bad_files = []
-		file_formats = ['html', 'css', 'js']
-		
-		for filename in os.listdir('.'):
-			if len(filename.rsplit('.', 1)) < 2 or filename.rsplit('.', 1)[1].lower() not in file_formats:
-				continue
-			try:
-				f = open(filename)
-				new_files[filename] = f.read()
-				f.close()
-			except:
-				bad_files.append(filename)
-		
-		if len(bad_files):
-			print ' % Error opening file(s)!'
-			for file in bad_files:
-				print "\t%s" % file
-			return False
-		
-		files = new_files; del new_files # resetted! Transfer new cache
-		return True
 	
 	
 	class APRSCallpassServer(ThreadingMixIn, HTTPServer):
+		# Yep. Literally the only reason for this to exist
+		# is that it's a threaded HTTPServer. More stable.
 		pass
 
 	class APRSRequestHandler(BaseHTTPRequestHandler):
 		
-		global files
 		import urllib
+		
+		# A list of media to allow the server to serve, and their content-type
 		media_types = { 'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript' }
+		
+		# Required files (duh). These come with the server by default.
+		required_files = ( 'index.html', 'code.html', 'error.html', 'style.css' )
+		
+		
+		def files(self, file_to_get=None):
+		# If this returns false, a (bad) response has been sent.
+			
+			# Acceptable files to serve.
+			file_formats = ['html', 'css', 'js']
+			
+			# The file list
+			files = []
+			
+			
+			# Required files are always required
+			for file in self.required_files:
+				if not os.path.exists( os.path.join(os.curdir, file) ):
+					
+					# A request is open, send HTTP 500 and return False.
+					self.send_response(500)
+					self.end_headers()
+					return False
+			
+			# Build a file list.
+			for fn in os.listdir('.'):
+				if len(fn.rsplit('.', 1)) > 1 and fn.rsplit('.', 1)[1].lower() in file_formats:
+					files.append(fn)
+			
+			if file_to_get not in files:
+				
+				self.send_response(404)
+				self.send_header('Location', '/')
+				self.end_headers()
+				return False
+			
+			# Else, return the contents of the file.
+			try:
+				f = open(file_to_get)
+				fdata = f.read()
+				f.close()
+			
+			except:
+				self.send_response(503)
+				self.end_headers()
+				return False
+			
+			return fdata
+		
 		
 		def do_GET(self):
 			
 			parsed_path = urlparse.urlparse(self.path)
-			path = parsed_path.path
+			path = parsed_path.path[1:]
+			if not len(path):	path = 'index.html'
 			
-			if path == '/':	path = '/index.html'
-			if path[1:] in ['code.html', 'error.html']\
-			or path[1:] not in files:
-				self.send_response(301)
+			
+			# The quick JSON version of this server.
+			if len(path) > 8 and str(path[:8]).lower() == 'getcode/':
+				
+				print path, '-', path[8:]
+				self.send_response(200)
+				self.send_header('Content-type', 'text/json')
+				self.end_headers()
+				
+				r = get_code(path[8:])
+				
+				self.wfile.write( json.dumps( s ) )
+				return
+			
+			#  Don't serve the usecase files directly
+			#  Send them to the front of the server.
+			if path in ['code.html', 'error.html']:
+				
+				self.send_response(410)
 				self.send_header('Location', '/')
 				self.end_headers()
-				return
+			
+			# They're here for something that exists publicly.
+			else:
 				
-			self.send_response(200)
-			self.send_header( 'Content-type', self.media_types[path.rsplit('.', 1)[1]] )
-			self.end_headers()
-			self.wfile.write(files[path[1:]])
+				file = self.files(path)
+				if file is not False:
+					
+					self.send_response(200)
+					self.send_header( 'Content-type', self.media_types[path.rsplit('.', 1)[1]] )
+					self.end_headers()
+					self.wfile.write( file )
+			
 			return
 		
 		
 		def do_POST(self):
 			
 			parsed_path = urlparse.urlparse(self.path)
-			path = parsed_path.path
+			path = parsed_path.path[1:]
 			
+			# Let the cgi module give us the pretty POST data
 			ctype, pdict = cgi.parse_header(self.headers.getheader('content-type'))
 			if ctype == 'multipart/form-data':
 				postvars = cgi.parse_multipart(self.rfile, pdict)
 			elif ctype == 'application/x-www-form-urlencoded':
 				length = int(self.headers.getheader('content-length'))
 				postvars = cgi.parse_qs(self.rfile.read(length), keep_blank_values=1)
-			else:
-				postvars = {}
+			else:	postvars = {}
 			
-			if not path == "/getcode" \
-			or 'callsign' not in postvars.keys():
+			
+			# Separating features by URL.
+			if path in ['', 'getcode']:
+				
+				if 'callsign' in postvars.keys():
+					
+					self.send_response(200)
+					self.send_header('Content-type', 'text/html')
+					self.end_headers()
+					
+					result = get_code(postvars['callsign'][0])
+					
+					post_file = self.files( 'code.html' if result['status'] else 'error.html' )
+					if not post_file == False:
+						self.wfile.write( post_file.replace('%unpopulated%', result['callpass'] if result['status'] else result['reason'] ) )
+				
+				# Their POST request was incorrect.
+				# Send them away to the front of the server.
+				else:
+					
+					self.send_response(400)
+					self.send_header('Location', '/')
+					self.end_headers()
+			
+			# Nothing covers that URL path.
+			else:
+				
 				self.send_response(301)
 				self.send_header('Location', '/')
 				self.end_headers()
-				return
-			
-			self.send_response(200)
-			self.send_header('Content-type', 'text/html')
-			self.end_headers()
-			
-			status, message = get_code(postvars['callsign'][0])
-			#self.wfile.write( files['error.html'] )
-			
-			# Good
-			if status:
-				self.wfile.write( files['code.html'].replace('%unpopulated%', str(message)) )
-			
-			# Bad
-			else:
-				self.wfile.write( files['error.html'].replace('%unpopulated%', message) )
 			
 			return
 
@@ -374,53 +383,43 @@ if __name__ == '__main__':
 	
 	import sys
 	
-	# Assume the user knows nothing.
-	# Which is probably true *giggle*
-	usage = """\nUsage:\n
-	$ python """ + __file__ + """ [-r] <CALLSIGN>
-		<callsign> must be an FCC recognized
-		callsign! (no dashes or designators)\n
-	$ python """ + __file__ + """ [-r] -d [port]
-		This will start the callpass web interface!
-		* Port is optional. Defaults to """ +str(web_daemon.default_port)+ """.\n
-	* An unfortunate inclusion; The -r flag will
-	  restrict users of the application and deny
-	  any non-amateurs their APRS-IS code.\n"""
+	usage = "\nUsage:\n\n\t$ python "+__file__+" [-r] <CALLSIGN>\n\t\t<callsign> must be an FCC recognized\n\t\tcallsign! (no dashes or designators)\n\n\t$ python "+__file__+" [-r] -d [port] [ip]\n\t\tThis will start the callpass web interface!\n\t\t* Port and IP are optional.\n\t\t  Defaults to "+str(web_daemon.default_ip)+':'+str(web_daemon.default_port)+"\n\n\t * An unfortunate inclusion; The -r flag will\n\t   restrict users of the application and deny\n\t   any non-amateurs their APRS-IS code.\n"
 	
 	
-	# Check for restriction, activate it.
+	# Check for restriction flag, activate it.
 	if len(sys.argv) > 1 and '-r' in sys.argv:
-		amateurs_only = True
+		
+		print "*** WARNING: Amateur operators only - restriction enabled."
+		
+		# This is an optional flag, we don't expect it so remove it
 		sys.argv.pop(sys.argv.index('-r'))
-		try:
-			from termcolor import colored
-		except ImportError:
-			def colored(text, color): return text
-		print "\n", colored('*** WARNING:', 'red'), "Amateur operators (only) restriction enabled.", "\n"
+		amateurs_only = True
 	
 	
-	# User provided no arguments or invalid arguments.
-	if len(sys.argv) < 2 or not isinstance(sys.argv[1], str):
-		print usage
-		sys.exit()
-	
-	
-	# If user calls for a daemon, prepare it.
-	if sys.argv[1] == '-d':
+	# Catch daemon flag, start the daemon.
+	if len(sys.argv) > 1 and sys.argv[1] == '-d':
+		
+		# Provide the default values if none specified
+		port = web_daemon.default_port
+		ip   = web_daemon.default_ip
+		
 		# An argument after the flag is assumed to be a port.
-		if len(sys.argv) > 2:	daemon = web_daemon(sys.argv[2])
-		else:					daemon = web_daemon()
+		# An argument after the port is assumed to be an IP.
+		if len(sys.argv) > 2:	port = sys.argv[2]
+		if len(sys.argv) > 3:	ip   = sys.argv[3]
+		
+		# Start the daemon
+		daemon = web_daemon(ip=ip, port=port)
+	
 	
 	# If the argument is alnum, assume callsign.
-	elif sys.argv[1].isalnum():
+	elif len(sys.argv) > 1 and sys.argv[1].isalnum():
 		
-		affirmative, message = get_code(sys.argv[1])
-		if not affirmative:
-			print 'Error:', message
-		else:
-			print 'Your APRS-IS code is', message
+		result = get_code(sys.argv[1])
+		if not result['status']:	print 'Error:', result['reason']
+		else:						print 'Your APRS-IS callpass is', result['callpass']
+	
 	
 	# They did something wrong.
-	# [Redundant] Education time!
-	else:
-		print usage
+	# Education time!
+	else: 	print usage

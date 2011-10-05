@@ -66,6 +66,3 @@ Just try to explain changes (in comments) instead of telling me I'm an idiot :)
 
 I've been advised against using HTTPServer for this task, but with the 
 ThreadingMixIn it can more than handle the measley amount of requests it will get.
-
-There is also concern about the idea of keeping the served files in memory.
-Personally, I don't think this is a problem. They're less than half a meg, shutup.
