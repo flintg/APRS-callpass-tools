@@ -233,16 +233,14 @@ class web_daemon:
 		# Required files (duh). These come with the server by default.
 		required_files = ( 'index.html', 'code.html', 'error.html', 'style.css' )
 		
+		# The file list
+		files = []
 		
 		def files(self, file_to_get=None):
 		# If this returns false, a (bad) response has been sent.
 			
-			# Acceptable files to serve.
-			file_formats = ['html', 'css', 'js']
-			
-			# The file list
-			files = []
-			
+			# Reset the file list.
+			self.files = []
 			
 			# Required files are always required
 			for file in self.required_files:
@@ -255,10 +253,10 @@ class web_daemon:
 			
 			# Build a file list.
 			for fn in os.listdir('.'):
-				if len(fn.rsplit('.', 1)) > 1 and fn.rsplit('.', 1)[1].lower() in file_formats:
-					files.append(fn)
+				if len(fn.rsplit('.', 1)) > 1 and fn.rsplit('.', 1)[1].lower() in self.media_types.keys():
+					self.files.append(fn)
 			
-			if file_to_get not in files:
+			if file_to_get not in self.files:
 				
 				self.send_response(404)
 				self.send_header('Location', '/')
