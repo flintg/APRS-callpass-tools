@@ -19,7 +19,6 @@
 import os, time
 import urllib, urlparse
 import socket, cgi
-import signal
 
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from SocketServer import ThreadingMixIn
