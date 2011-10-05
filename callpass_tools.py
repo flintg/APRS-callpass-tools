@@ -168,8 +168,7 @@ class web_daemon:
 			return None
 		
 		# Load the files into memory
-		if not self.required_files_check()\
-		or not self.load_files():	return None
+		if not self.load_files():	return None
 		else:						print 'Files loaded'
 		
 		print 'Note: if you customize, change, add or delete files, you'
@@ -264,6 +263,10 @@ class web_daemon:
 	
 	
 	def load_files(self):
+		
+		# If the files don't exist, then we can't read them.
+		if not self.required_files_check(): return False
+		
 		# All of the html, css, and js files will be read into RAM.
 		# This could be a nasty discussion, but I figure if you're
 		# going to read the file, the kernel is just going to load
@@ -272,16 +275,18 @@ class web_daemon:
 		# Besides, these files barely manage half a MB alone.
 		
 		global files
-		files = {} # reset for SIGHUP
-		bad_files = []
+		
+		# except this is a SIGHUP, don't erase something that's working
+		# make a temporary cache and dump it into the real on when ready
+		new_files = {}; bad_files = []
 		file_formats = ['html', 'css', 'js']
-
+		
 		for filename in os.listdir('.'):
 			if len(filename.rsplit('.', 1)) < 2 or filename.rsplit('.', 1)[1].lower() not in file_formats:
 				continue
 			try:
 				f = open(filename)
-				files[filename] = f.read()
+				new_files[filename] = f.read()
 				f.close()
 			except:
 				bad_files.append(filename)
@@ -292,6 +297,7 @@ class web_daemon:
 				print "\t%s" % file
 			return False
 		
+		files = new_files; del new_files # resetted! Transfer new cache
 		return True
 	
 	
