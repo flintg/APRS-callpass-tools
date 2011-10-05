@@ -148,28 +148,16 @@ class web_daemon:
 			print '*** ERROR: Could not bind to IP and port! Cannot continue!'
 			return None
 		
-		# Start the server, daemonize, then activate its server loop
-		# The KeyboardInterrup exception just looks better when debugging
+		# Start the server then daemonize
 		print 'Forking server into background'
 		self.server = self.APRSCallpassServer((self.ip, self.port), self.APRSRequestHandler)
 		if daemonize: daemon.daemonize(self.pidfile)
 		
 		# Start the server loop
+		# KeyboardInterrup exception just looks better debugging
 		try:	self.server.serve_forever()
 		except KeyboardInterrupt:	print "\nServer shutdown!"
 		
-		# Remove pidfile once the server comes down
-		try:			os.remove(self.pidfile)
-		except OSError:	pass
-		return None
-	
-	
-	def __del__(self):
-		# Redundancy
-		
-		# Remove pidfile once the server comes down
-		try:			os.remove(self.pidfile)
-		except OSError:	pass
 		return None
 	
 	
