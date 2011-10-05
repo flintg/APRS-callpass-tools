@@ -1,0 +1,14 @@
+Version 1.2 - 10/05/2011
+	
+	Used the ThreadingMixIn with the HTTPServer to provide 
+		PHENOMINALLY better stability and performance.
+	Rearranged code. More: comments, semantic, modal, and just pretty.
+	Files are now read from disk instead of RAM.
+	Server returns a variety of applicable HTTP codes.
+	Placed the server in the web_daemon class root for easy access.
+	Added ability to bind to a specific IP.
+	Added ip validation and default.
+
+Version 1.0 - Initial release
+	
+	Comes with command line tools and a web daemon.

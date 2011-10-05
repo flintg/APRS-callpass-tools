@@ -127,8 +127,10 @@ class web_daemon:
 	pid = str(os.getpid())
 	pidfile = "/tmp/callpass_tools.pid"
 	
+	server = False
 	
-	def __init__(self, ip=default_ip, port=default_port):
+	
+	def __init__(self, ip=default_ip, port=default_port, daemonize=True):
 		
 		# Check the IP
 		if self.validate_ip(ip):	self.ip = ip
@@ -149,9 +151,11 @@ class web_daemon:
 		# Start the server, daemonize, then activate its server loop
 		# The KeyboardInterrup exception just looks better when debugging
 		print 'Forking server into background'
-		server = self.APRSCallpassServer((self.ip, self.port), self.APRSRequestHandler)
-		# daemon.daemonize(self.pidfile) # debug
-		try:	server.serve_forever()
+		self.server = self.APRSCallpassServer((self.ip, self.port), self.APRSRequestHandler)
+		if daemonize: daemon.daemonize(self.pidfile)
+		
+		# Start the server loop
+		try:	self.server.serve_forever()
 		except KeyboardInterrupt:	print "\nServer shutdown!"
 		
 		# Remove pidfile once the server comes down
@@ -304,7 +308,7 @@ class web_daemon:
 				
 				r = get_code(path[8:])
 				
-				self.wfile.write( json.dumps( s ) )
+				self.wfile.write( json.dumps( r ) )
 				return
 			
 			#  Don't serve the usecase files directly
