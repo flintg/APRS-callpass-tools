@@ -137,7 +137,7 @@ class web_daemon:
 		else: self.ip = self.default_ip; print '*** WARNING: Given IP was illegal. Defaulting to', self.ip
 		
 		# Check the ports
-		if self.validate_port(port): self.port = port
+		if self.validate_port(port): self.port = int(port)
 		else: self.port = self.default_port; print '*** WARNING: Given port was illegal, defaulting to', self.port
 		
 		# Tell them where the server should spawn
