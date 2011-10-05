@@ -152,7 +152,7 @@ class web_daemon:
 		# Start the server then daemonize
 		print 'Forking server into background'
 		self.server = self.APRSCallpassServer((self.ip, self.port), self.APRSRequestHandler)
-		#if daemonize: daemon.daemonize(self.pidfile) #debug
+		if daemonize: daemon.daemonize(self.pidfile)
 		
 		# Start the server loop
 		# KeyboardInterrup exception just looks better debugging
