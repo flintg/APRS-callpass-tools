@@ -104,8 +104,8 @@ def validate_callsign(callsign):
 def get_code(callsign):
 	
 	# Validation returns likewise failure reasons
-	result = validate_callsign(callsign)
-	if not result['status']: return result
+	validate_result = validate_callsign(callsign)
+	if not validate_result['status']: return result
 	
 	# Call the external program, wait for it to complete, return findings.
 	proc = Popen(['callpass', callsign], stdout=PIPE); proc.wait()
@@ -113,7 +113,7 @@ def get_code(callsign):
 	result = result.rsplit(' ', 1)
 	code = int(result[1])
 	
-	return { 'status': True, 'method': result['method'], 'callpass': code }
+	return { 'status': True, 'method': validate_result['method'], 'callpass': code }
 
 
 
@@ -152,7 +152,7 @@ class web_daemon:
 		# Start the server then daemonize
 		print 'Forking server into background'
 		self.server = self.APRSCallpassServer((self.ip, self.port), self.APRSRequestHandler)
-		if daemonize: daemon.daemonize(self.pidfile)
+		#if daemonize: daemon.daemonize(self.pidfile) #debug
 		
 		# Start the server loop
 		# KeyboardInterrup exception just looks better debugging

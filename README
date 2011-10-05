@@ -44,8 +44,8 @@ ABILITIES:
 [~] As a library:
 	Simple way to check licenses.
 		callpass_tools.get_code() validates the license and returns the code for you.
-		Success: { 'status': True, 'callpass': 12345 }
-		Failure: { 'status': False, 'reason': 'Could not find callsign in the database' }
+		Success: { 'status': True,  'method': 'FCC', 'callpass': 12345 }
+		Failure: { 'status': False, 'method': 'FCC', 'reason': 'Could not find callsign in the database' }
 	You can start the web daemon from your program.
 	The server is accessible from callpass_tools.web_daemon.server
 
