@@ -65,6 +65,7 @@ except:
 def validate_callsign(callsign):
 	
 	# Fetch data from the FCC. Subject to change.
+	method = 'FCC'
 	api_url = 'http://data.fcc.gov/api/license-view/basicSearch/getLicenses?format=json&searchValue='
 	page = urllib.urlopen( api_url+urllib.quote(callsign) ); data = page.read(); page.close()
 	data = json.loads(data)
@@ -72,7 +73,7 @@ def validate_callsign(callsign):
 	
 	# Something isn't okay. Just relay that.
 	if not str(data['status']).upper() == 'OK':
-		return { 'status': False, 'reason': '[FCC] '+ data['Errors']['Err'][0]['msg'] }
+		return { 'status': False, 'method': method, 'reason': data['Errors']['Err'][0]['msg'] }
 	
 	# Search through them for the license we're looking for.
 	for lic_entry in data['Licenses']['License']:
@@ -83,11 +84,11 @@ def validate_callsign(callsign):
 	
 	# If we didn't find it, that's all.
 	if not license:
-		return { 'status': False, 'reason': 'Callsign could not be found!' }
+		return { 'status': False, 'method': method, 'reason': 'Callsign could not be found!' }
 	
 	# :( If amateurs_only restriction is set, check out the license.
 	if amateurs_only and not str(license['serviceDesc']).lower() == 'amateur':
-		return { 'status': False, 'reason': 'This service has been restricted to amateur operators.' }
+		return { 'status': False, 'method': method, 'reason': 'This service has been restricted to amateur operators.' }
 	
 	# Turn dates into YYYYMMDD - comparable integers
 	expdate  = license['expiredDate'].split('/')
@@ -95,9 +96,9 @@ def validate_callsign(callsign):
 	currdate = int(time.strftime('%Y%m%d', time.gmtime(time.time())))
 	
 	if currdate > expdate:
-		return { 'status': False, 'reason': 'Your license is expired!' }
+		return { 'status': False, 'method': method, 'reason': 'Your license is expired!' }
 	
-	return { 'status': True }
+	return { 'status': True, 'method': method }
 
 
 def get_code(callsign):
@@ -112,7 +113,7 @@ def get_code(callsign):
 	result = result.rsplit(' ', 1)
 	code = int(result[1])
 	
-	return { 'status': True, 'callpass': code }
+	return { 'status': True, 'method': result['method'], 'callpass': code }
 
 
 
@@ -287,7 +288,6 @@ class web_daemon:
 			# The quick JSON version of this server.
 			if len(path) > 8 and str(path[:8]).lower() == 'getcode/':
 				
-				print path, '-', path[8:]
 				self.send_response(200)
 				self.send_header('Content-type', 'text/json')
 				self.end_headers()
