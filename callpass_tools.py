@@ -289,27 +289,43 @@ class web_daemon:
 			if not len(path):	path = 'index.html'
 			
 			
-			# The quick JSON version of this server.
-			if len(path) > 8 and str(path[:8]).lower() == 'getcode/':
+			# HTML service
+			if   len(path) > 5 and str(path[:5]).lower() == 'code/' and str(path[5:]).isalnum():
+				
+				self.send_response(200)
+				self.send_header('Content-type', 'text/html')
+				self.end_headers()
+				
+				result = get_code( path[5:] )
+				
+				post_file = self.files( 'code.html' if result['status'] else 'error.html' )
+				if not post_file == False:
+					
+					# Do the operation on the file, send it out
+					post_file = post_file.replace( "%unpopulated%", str(result['callpass']) if result['status'] else result['reason'] )
+					self.wfile.write( post_file )
+			
+			# JSON service
+			elif len(path) > 5 and str(path[:5]).lower() == 'json/' and str(path[5:]).isalnum():
 				
 				self.send_response(200)
 				self.send_header('Content-type', 'application/json')
 				self.end_headers()
 				
-				r = get_code(path[8:])
+				r = get_code(path[5:])
 				
 				self.wfile.write( json.dumps( r ) )
-				return
 			
 			#  Don't serve the usecase files directly
 			#  Send them to the front of the server.
-			if path in ['code.html', 'error.html']:
+			elif path in ['code.html', 'error.html']:
 				
 				self.send_response(410)
 				self.send_header('Location', '/')
 				self.end_headers()
 			
-			# They're here for something that exists publicly.
+			# Exhausted our special cases
+			# Assume they're here for a public file
 			else:
 				
 				file = self.files(path)
@@ -322,8 +338,12 @@ class web_daemon:
 			
 			return
 		
-		
+
 		def do_POST(self):
+			
+			# POST only has one purpose on this server.
+			# To submit a callsign you want a code for.
+			# We're going to send them to the pretty URL from here :)
 			
 			parsed_path = urlparse.urlparse(self.path)
 			path = parsed_path.path[1:]
@@ -338,36 +358,19 @@ class web_daemon:
 			else:	postvars = {}
 			
 			
-			# Separating features by URL.
-			if path in ['', 'getcode']:
+			# This is the only reason to POST.
+			if 'callsign' in postvars.keys():
 				
-				if 'callsign' in postvars.keys():
-					
-					self.send_response(200)
-					self.send_header('Content-type', 'text/html')
-					self.end_headers()
-					
-					result = get_code(postvars['callsign'][0])
-					
-					post_file = self.files( 'code.html' if result['status'] else 'error.html' )
-					if not post_file == False:
-						
-						# Do the operation on the file, send it out
-						post_file = post_file.replace( "%unpopulated%", str(result['callpass']) if result['status'] else result['reason'] )
-						self.wfile.write( post_file )
+				# Direct them to the GET portion they want.
+				self.send_response(302)
+				self.send_header( 'Location', '/code/'+urllib.quote( postvars['callsign'] ) )
+				self.end_headers()
 				
-				# Their POST request was incorrect.
-				# Send them away to the front of the server.
-				else:
-					
-					self.send_response(400)
-					self.send_header('Location', '/')
-					self.end_headers()
-			
-			# Nothing covers that URL path.
+			# Their POST request was incorrect.
+			# Send them away to the front of the server.
 			else:
 				
-				self.send_response(301)
+				self.send_response(400)
 				self.send_header('Location', '/')
 				self.end_headers()
 			
