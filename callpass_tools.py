@@ -380,7 +380,7 @@ class web_daemon:
 				
 				# Direct them to the GET portion they want.
 				self.send_response(302)
-				self.send_header( 'Location', '/code/'+urllib.quote( postvars['callsign'] ) )
+				self.send_header( 'Location', '/code/'+urllib.quote( postvars['callsign'][0] ) )
 				self.end_headers()
 				
 			# Their POST request was incorrect.
