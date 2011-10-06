@@ -33,12 +33,6 @@ except ImportError:
 		raise ImportError('Could not import json or simplejson. Please install one of these options!')
 
 
-# This sucks, but some sysadmins like to complain
-# that APRS-IS is "hams only" and use server load
-# and "community purity" as an excuse. We'll let 
-# them choose. Default is to not be exclusionary.
-amateurs_only = False
-
 
 # This check is to determine if the tools for code
 # generating are installed. Do this check.

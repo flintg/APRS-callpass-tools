@@ -63,6 +63,7 @@ TODO:
 	* The default code.html and error.html files need a bit better text styling.
 	* Doesn't currently identify cancelled licenses because I don't know if
 		that has a consistent entry in the database
+	* Get images working when served. Don't know why, they just don't.
 
 
 LICENSE:
