@@ -150,9 +150,9 @@ class web_daemon:
 		# They want a daemon webserver
 		if daemonize:
 			
-			# Attempt to import what we need
-			try:				import daemon; daemon.daemonize(self.pidfile)
-			except ImportError:	daemon = False; print '*** WARNING: Cannot start daemon. Module not installed.'
+			# Attempt to import what we need, alert them if they don't have it
+			try:				import daemon; print "Forking server into background!"; daemon.daemonize(self.pidfile)
+			except ImportError: print "*** WARNING: Cannot start fork to become a daemon.\n  * Please install the python daemon module!\n  * `[sudo] easy_install daemon` or `[sudo] pip install daemon`\n  * Or download it manually: http://pypi.python.org/pypi/daemon"
 		
 		# Start the server loop
 		# KeyboardInterrup exception just looks better debugging
@@ -273,7 +273,6 @@ class web_daemon:
 				f = open(file_to_get)
 				fdata = f.read()
 				f.close()
-				fdata = str(fdata)
 			
 			except:
 				self.send_response(503)
