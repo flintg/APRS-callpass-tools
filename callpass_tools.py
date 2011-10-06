@@ -60,33 +60,24 @@ except:
 def validate_callsign(callsign):
 	
 	# Fetch data from the FCC. Subject to change.
-	method = 'FCC'
-	api_url = 'http://data.fcc.gov/api/license-view/basicSearch/getLicenses?format=json&searchValue='
-	page = urllib.urlopen( api_url+urllib.quote(callsign) ); data = page.read(); page.close()
+	method = "callook"
+	api_url = 'http://callook.info/%s/json'
+	page = urllib.urlopen( api_url % urllib.quote(callsign) ); data = page.read(); page.close()
 	data = json.loads(data)
-	license = False
 	
 	# Something isn't okay. Just relay that.
-	if not str(data['status']).upper() == 'OK':
-		return { 'status': False, 'method': method, 'reason': data['Errors']['Err'][0]['msg'] }
-	
-	# Search through them for the license we're looking for.
-	for lic_entry in data['Licenses']['License']:
-		# A match! Get out of the loop, record the license.
-		if str(lic_entry['callsign']).upper() == str(callsign).upper():
-			license = lic_entry
-			break
-	
-	# If we didn't find it, that's all.
-	if not license:
-		return { 'status': False, 'method': method, 'reason': 'Callsign could not be found!' }
-	
-	# :( If amateurs_only restriction is set, check out the license.
-	if amateurs_only and not str(license['serviceDesc']).lower() == 'amateur':
-		return { 'status': False, 'method': method, 'reason': 'This service has been restricted to amateur operators.' }
+	if not str(data['status']).upper() == 'VALID':
+		
+		if str(data['status']).upper() == 'INVALID':
+			return { 'status': False, 'method': method, 'reason': 'Callsign could not be found!' }
+		
+		if str(data['status']).upper() == 'UPDATING':
+			return { 'status': False, 'method': method, 'reason': 'Database update in progress!' }
+		
+		return { 'status': False, 'method': method, 'reason': 'Unknown error!' }
 	
 	# Turn dates into YYYYMMDD - comparable integers
-	expdate  = license['expiredDate'].split('/')
+	expdate  = data['otherInfo']['expiryDate'].split('/')
 	expdate  = int(expdate[2]+expdate[0]+expdate[1])
 	currdate = int(time.strftime('%Y%m%d', time.gmtime(time.time())))
 	
@@ -399,17 +390,7 @@ if __name__ == '__main__':
 	
 	import sys
 	
-	usage = "\nUsage:\n\n\t$ python "+__file__+" [-r] <CALLSIGN>\n\t\t<callsign> must be an FCC recognized\n\t\tcallsign! (no dashes or designators)\n\n\t$ python "+__file__+" [-r] -d [port] [ip]\n\t\tThis will start the callpass web interface!\n\t\t* Port and IP are optional.\n\t\t  Defaults to "+str(web_daemon.default_ip)+':'+str(web_daemon.default_port)+"\n\n\t * An unfortunate inclusion; The -r flag will\n\t   restrict users of the application and deny\n\t   any non-amateurs their APRS-IS code.\n"
-	
-	
-	# Check for restriction flag, activate it.
-	if len(sys.argv) > 1 and '-r' in sys.argv:
-		
-		print "*** WARNING: Amateur operators only - restriction enabled."
-		
-		# This is an optional flag, we don't expect it so remove it
-		sys.argv.pop(sys.argv.index('-r'))
-		amateurs_only = True
+	usage = "\nUsage:\n\n\t$ python "+__file__+" <CALLSIGN>\n\t\t<callsign> must be an FCC recognized\n\t\tcallsign! (no dashes or designators)\n\n\t$ python "+__file__+" -d [port] [ip]\n\t\tThis will start the callpass web interface!\n\t\t* Port and IP are optional.\n\t\t  Defaults to "+str(web_daemon.default_ip)+':'+str(web_daemon.default_port)+"\n"
 	
 	
 	# Catch daemon flag, start the daemon.
