@@ -213,7 +213,8 @@ class web_daemon:
 		except socket.error:
 				# Couldn't bind, the port is inhabited
 				# daemon check exits for us if it's ours.
-				daemon.checkPID(self.pidfile)
+				try:				import daemon; daemon.checkPID(self.pidfile)
+				except ImportError:	pass
 		
 		return False
 	
@@ -229,7 +230,15 @@ class web_daemon:
 		import urllib
 		
 		# A list of media to allow the server to serve, and their content-type
-		media_types = { 'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript' }
+		media_types = {
+			
+			'html'	: 'text/html',
+			'css'	: 'text/css',
+			'js'	: 'text/javascript',
+			'png'	: 'image/png', 'jpg' : 'image/jpg', 'jpeg' : 'image/jpeg', 'gif' : 'image/gif',
+			'ico'	: 'image/x-icon',
+		
+		}
 		
 		# Required files (duh). These come with the server by default.
 		required_files = ( 'index.html', 'code.html', 'error.html', 'style.css' )
@@ -241,7 +250,7 @@ class web_daemon:
 		clients_now = []
 		
 		
-		def files(self, file_to_get=None):
+		def get_file(self, file_to_get=None):
 		# If this returns false, a (bad) response has been sent.
 			
 			# Reset the file list.
@@ -264,17 +273,25 @@ class web_daemon:
 			if file_to_get not in self.files:
 				
 				self.send_response(404)
-				self.send_header('Location', '/')
 				self.end_headers()
+				
+				# func-ception ( read as funk-ception )
+				file = self.get_file('index.html')
+				
+				if not file == False:
+					self.wfile.write( file )
+				
 				return False
 			
 			# Else, return the contents of the file.
 			try:
+				
 				f = open(file_to_get)
 				fdata = f.read()
 				f.close()
 			
 			except:
+				
 				self.send_response(503)
 				self.end_headers()
 				return False
@@ -298,7 +315,7 @@ class web_daemon:
 				
 				result = get_code( path[5:] )
 				
-				post_file = self.files( 'code.html' if result['status'] else 'error.html' )
+				post_file = self.get_file( 'code.html' if result['status'] else 'error.html' )
 				if not post_file == False:
 					
 					# Do the operation on the file, send it out
@@ -328,7 +345,7 @@ class web_daemon:
 			# Assume they're here for a public file
 			else:
 				
-				file = self.files(path)
+				file = self.get_file( path )
 				if file is not False:
 					
 					self.send_response(200)
