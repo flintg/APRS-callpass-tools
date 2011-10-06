@@ -273,6 +273,7 @@ class web_daemon:
 				f = open(file_to_get)
 				fdata = f.read()
 				f.close()
+				fdata = str(fdata)
 			
 			except:
 				self.send_response(503)
