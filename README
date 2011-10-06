@@ -1,13 +1,13 @@
 This is a little library I decided to build because I got tired of
 people waiting for other people to give them their APRS code.
 Sometimes wait times would reach weeks long.
-This is a much more elegant solution.
 
+This is a much more elegant solution which aims to remove emails and wait time from the process.
 Less hassle for humans, less pissoff-ery for the person needing their code. :)
-This does the basic job. It removes the email system, and eliminates wait time.
-Provides APRS via browser or JSON over HTTP.
-A webserver and command line tool.
-You want it? It's yours.
+This does the basic job, and more. It is a library, a command line tool, and an APRS code web server.
+
+You like the sound of that? Good, it's yours!
+
 
 ---------------------------------------------------------------
 Usage:
@@ -27,83 +27,52 @@ Usage:
 
 
 REQUIREMENTS:
-	Python daemon module. `sudo pip install daemon` or `sudo easy_install daemon`
-		Manual install: http://pypi.python.org/pypi/daemon
+	
 	The tool for generating the aprs-is callsign passcodes.
 		You either know what it is or you don't.
+	
+	Python daemon module. `sudo pip install daemon` or `sudo easy_install daemon`
+		Manual install: http://pypi.python.org/pypi/daemon
+		[OPTIONAL] Required only if you require this server as a daemon
+
 
 ABILITIES:
 [~] As a standalone:
-	Generate a code immediately with the built in ability to check against
-		licensing authorities and restriction to hams-only.
+	Generate a code immediately with the built in ability to check against licensing authorities.
 
 [~] As a library:
+	Searches callsigns against the callook (callook.info) database to guaruntee license validity.
+		(Does not check for cancellation yet)
 	Simple way to check licenses.
 		callpass_tools.get_code() validates the license and returns the code for you.
-		Success: { 'status': True,  'method': 'FCC', 'callpass': 12345 }
-		Failure: { 'status': False, 'method': 'FCC', 'reason': 'Could not find callsign in the database' }
+		Success: { 'status': True,  'method': 'callook', 'callpass': 12345 }
+		Failure: { 'status': False, 'method': 'callook', 'reason': 'Could not find callsign in the database' }
 	You can start the web daemon from your program.
 	The server is accessible from callpass_tools.web_daemon.server
 
 [~] As a web server:
-	Offers an HTTP POST interface and an HTTP GET JSON interface at /getcode/AB3DEF
+	Offers easy HTTP GET interface options.
+		HTML at /code/AB3DEF
+		JSON at /json/AB3DEF
 	Binds to any IP/port that's available.
 	Prevents you from spawning more than one instance.
-	Searches callsigns against the FCC database and sifts through them
-	Guaruntees license validity. (Does not check for cancellation yet)
 	The callpass is not generated unless the license passes validation.
+
 
 TODO:
 	* The default code.html and error.html files need a bit better text styling.
 	* Doesn't currently identify cancelled licenses because I don't know if
-		that has a consistent entry in the FCC database
-	
-	[!] DENIED: Switch to using QRZ database API.
-		There are many, many things wrong with their implementation.
-		Read on to find out.
-
-LICENSE: GPLv3
+		that has a consistent entry in the database
 
 
-Author's note:
+LICENSE:
+	GPLv3
 
-	I'm basically a newbie to python, so if you'd like to help, feel free!
+
+AUTHOR'S NOTE:
+
+	I'm basically a newbie to git and python, so if you'd like to help, feel free!
 Just try to explain changes (in comments) instead of telling me I'm an idiot :)
 
 I've been advised against using HTTPServer for this task, but with the 
 ThreadingMixIn it can more than handle the measley amount of requests it will get.
-
-
-
-==========-------------==============---------------==============
-
-	A NOTE ABOUT QRZ.
-
-	It would appear that they have the most comprehensive, and acceptably fast, database of ham radio license information on the planet. This may be popular belief, but it is sadly untrue.
-
-Small cases can be found on google and proven on QRZ which do not exist. The one case I found easiest to test and find on google is K8YS.
-
-K8YS definitely exists in the same FCC dump as all the other callsigns from it, but he doesn't show up on QRZ at all. Even using their database API, it had no /real/ information or record he existed.
-
-This kind of issue is unacceptable, as it is a valid callsign and the owner's license is current. It is ridiculous to tell them 'no' because they are excluded from a database they have no control over.
-
-	Their database API requires authentication and a paid plan.
-
-Okay, a paid plan is not so bad, nothing to complain about yet.
-Due to the restrictions of their API for --valid-- security reasons, there would be no way to automate this. Every user of this library would have to have (1) a QRZ account and (2) a paid plan on said account. This is far too much an inconvenience, and here is where we get to the hear of the problem.
-
-	Whenever you authenticate for the QRZ database API, it is through, possibly unencrypted, HTTP GET query paramaters.
-
-This beats my metaphorical dead horse. 3 things wrong here.
-
-When authenticating, you're sending your username and password AS PLAIN TEXT.
-
-Now, the web-savvy out there will thing "those get encrypted too." Well... while you're sending your plaintext password, SSL is NOT REQUIRED. You could easily slip up by accident.
-
-Authenticating by putting your plaintext password in the GET URL of a request is BEGGING and PLEADING for trouble. Anytime it's not encrypted, anyone who happens to be on the same network can sniff traffic and have your password.
-
-This URL can also be saved in an applications logs (browser history). This URL can also be saved in the SERVER LOGS and there's absolutely NOTHING you can do about that. It's an HTTP GET request with a QUERY string, nothing strange about recording those.
-
-	In conclusion, there are a ridiculous multitude of ways to lose your password (which could lead to identity theft, bank accounts cleaned out, losing your email accounts and), don't let it be something like this that does it.
-
-I would NEVER trust my own password to QRZ's ridiculous API authentication scheme, and I would never knowingly expose other users to such ludicrous insecurities just for some, or any, data.
