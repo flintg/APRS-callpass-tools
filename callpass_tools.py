@@ -32,11 +32,6 @@ except ImportError:
 	except ImportError:
 		raise ImportError('Could not import json or simplejson. Please install one of these options!')
 
-try:
-	import daemon
-except ImportError:
-	raise ImportError('Please install the python "daemon" module! Use `[sudo] easy_install daemon` or `[sudo] pip install daemon` or download it manually: http://pypi.python.org/pypi/daemon')
-
 
 # This sucks, but some sysadmins like to complain
 # that APRS-IS is "hams only" and use server load
@@ -131,7 +126,7 @@ class web_daemon:
 	server = False
 	
 	
-	def __init__(self, ip=default_ip, port=default_port, daemonize=True):
+	def __init__(self, ip=default_ip, port=default_port, daemonize=False):
 		
 		# Check the IP
 		if self.validate_ip(ip):	self.ip = ip
@@ -149,10 +144,15 @@ class web_daemon:
 			print '*** ERROR: Could not bind to IP and port! Cannot continue!'
 			return None
 		
-		# Start the server then daemonize
-		print 'Forking server into background'
+		# Start the server
 		self.server = self.APRSCallpassServer((self.ip, self.port), self.APRSRequestHandler)
-		if daemonize: daemon.daemonize(self.pidfile)
+		
+		# They want a daemon webserver
+		if daemonize:
+			
+			# Attempt to import what we need
+			try:				import daemon; daemon.daemonize(self.pidfile)
+			except ImportError:	daemon = False; print '*** WARNING: Cannot start daemon. Module not installed.'
 		
 		# Start the server loop
 		# KeyboardInterrup exception just looks better debugging
@@ -405,7 +405,7 @@ if __name__ == '__main__':
 		if len(sys.argv) > 3:	ip   = sys.argv[3]
 		
 		# Start the daemon
-		daemon = web_daemon(ip=ip, port=port)
+		daemon = web_daemon(ip=ip, port=port, daemonize=True)
 	
 	
 	# If the argument is alnum, assume callsign.
