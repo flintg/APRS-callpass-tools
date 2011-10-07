@@ -22,7 +22,6 @@ import socket, cgi
 
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from SocketServer import ThreadingMixIn
-from subprocess import Popen, PIPE
 
 try:
 	import json
@@ -31,24 +30,6 @@ except ImportError:
 		import simplejson as json
 	except ImportError:
 		raise ImportError('Could not import json or simplejson. Please install one of these options!')
-
-
-
-# This check is to determine if the tools for code
-# generating are installed. Do this check.
-# >> You either know what you need installed or you don't.
-try:
-	proc = Popen(['callpass', 'bob'], stdout=PIPE, stderr=PIPE)
-	proc.wait()
-	if len(proc.stderr.read()) > 1:
-		raise EnvironmentError("This system does not have prerequisites for APRS callsign passcode generation installed, or they are not in the user's path!")
-	if len(proc.stdout.read()) < 1:
-		raise EnvironmentError("The APRS callsign passcode generation tool does not return a passcode!")
-except:
-	raise EnvironmentError("This system does not have prerequisites for APRS callsign passcode generation installed, or they are not in the user's path!")
-# /check
-
-
 
 
 def validate_callsign(callsign):
@@ -88,10 +69,7 @@ def get_code(callsign):
 	if not validate_result['status']: return validate_result
 	
 	# Call the external program, wait for it to complete, return findings.
-	proc = Popen(['callpass', callsign], stdout=PIPE); proc.wait()
-	result = proc.stdout.read()
-	result = result.rsplit(' ', 1)
-	code = int(result[1])
+	code = 0
 	
 	return { 'status': True, 'method': validate_result['method'], 'callpass': code }
 
