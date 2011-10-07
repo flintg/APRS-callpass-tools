@@ -31,6 +31,9 @@ except ImportError:
 	except ImportError:
 		raise ImportError('Could not import json or simplejson. Please install one of these options!')
 
+try:
+	import daemon
+
 
 def validate_callsign(callsign):
 	
@@ -62,16 +65,32 @@ def validate_callsign(callsign):
 	return { 'status': True, 'method': method }
 
 
-def get_code(callsign):
+def get_passcode(callsign):
 	
 	# Validation returns likewise failure reasons
 	validate_result = validate_callsign(callsign)
 	if not validate_result['status']: return validate_result
 	
-	# Call the external program, wait for it to complete, return findings.
-	code = 0
+	#  return findings.
+	callpass = callsign_hash(callsign)
 	
-	return { 'status': True, 'method': validate_result['method'], 'callpass': code }
+	return { 'status': True, 'method': validate_result['method'], 'callpass': callpass }
+
+
+def callsign_hash(callsign):
+	# This method derived from the xastir project under a GPL license.
+	
+	hash = 0x73e2	# seed value, non-negotiable
+	i = 1	# loop switch
+	
+	for char in callsign.upper():
+		
+		if i:	hash = hash ^ ord(char)<<8
+		else:	hash = hash ^ ord(char)
+		
+		i = False if i else True
+		
+	return ( hash & 0x7fff ) 
 
 
 
@@ -115,7 +134,7 @@ class web_daemon:
 			
 			# Attempt to import what we need, alert them if they don't have it
 			try:				import daemon; print "Forking server into background!"; daemon.daemonize(self.pidfile)
-			except ImportError: print "*** WARNING: Cannot start fork to become a daemon.\n  * Please install the python daemon module!\n  * `[sudo] easy_install daemon` or `[sudo] pip install daemon`\n  * Or download it manually: http://pypi.python.org/pypi/daemon"
+			except ImportError: print "*** WARNING: Cannot daemonize! Please install the python daemon module!\n  * `[sudo] easy_install daemon` or `[sudo] pip install daemon`\n  * Or download it manually: http://pypi.python.org/pypi/daemon"
 		
 		# Start the server loop
 		# KeyboardInterrup exception just looks better debugging
@@ -276,7 +295,7 @@ class web_daemon:
 				self.send_header('Content-type', 'text/html')
 				self.end_headers()
 				
-				result = get_code( path[5:] )
+				result = get_passcode( path[5:] )
 				
 				post_file = self.get_file( 'code.html' if result['status'] else 'error.html' )
 				if not post_file == False:
@@ -292,7 +311,7 @@ class web_daemon:
 				self.send_header('Content-type', 'application/json')
 				self.end_headers()
 				
-				r = get_code(path[5:])
+				r = get_passcode(path[5:])
 				
 				self.wfile.write( json.dumps( r ) )
 			
@@ -384,7 +403,7 @@ if __name__ == '__main__':
 	# If the argument is alnum, assume callsign.
 	elif len(sys.argv) > 1 and sys.argv[1].isalnum():
 		
-		result = get_code(sys.argv[1])
+		result = get_passcode(sys.argv[1])
 		if not result['status']:	print 'Error:', result['reason']
 		else:						print 'Your APRS-IS callpass is', result['callpass']
 	
