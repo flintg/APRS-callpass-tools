@@ -53,7 +53,7 @@ except:
 
 def validate_callsign(callsign):
 	
-	# Fetch data from the FCC. Subject to change.
+	# Fetch license data.
 	method = "callook"
 	api_url = 'http://callook.info/%s/json'
 	page = urllib.urlopen( api_url % urllib.quote(callsign) ); data = page.read(); page.close()
