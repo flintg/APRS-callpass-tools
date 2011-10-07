@@ -31,14 +31,26 @@ except ImportError:
 	except ImportError:
 		raise ImportError('Could not import json or simplejson. Please install one of these options!')
 
-try:
-	import daemon
+
+
+def get_passcode(callsign):
+	
+	# Validation returns likewise failure reasons
+	validate_result = validate_callsign(callsign)
+	if not validate_result['status']: return validate_result
+	
+	#  return findings.
+	callpass = callsign_hash(callsign)
+	
+	return { 'status': True, 'method': validate_result['method'], 'callpass': callpass }
 
 
 def validate_callsign(callsign):
 	
+	method = []
+	
 	# Fetch license data.
-	method = "callook"
+	method.append("callook")
 	api_url = 'http://callook.info/%s/json'
 	page = urllib.urlopen( api_url % urllib.quote(callsign) ); data = page.read(); page.close()
 	data = json.loads(data)
@@ -65,18 +77,6 @@ def validate_callsign(callsign):
 	return { 'status': True, 'method': method }
 
 
-def get_passcode(callsign):
-	
-	# Validation returns likewise failure reasons
-	validate_result = validate_callsign(callsign)
-	if not validate_result['status']: return validate_result
-	
-	#  return findings.
-	callpass = callsign_hash(callsign)
-	
-	return { 'status': True, 'method': validate_result['method'], 'callpass': callpass }
-
-
 def callsign_hash(callsign):
 	# This method derived from the xastir project under a GPL license.
 	
@@ -85,9 +85,7 @@ def callsign_hash(callsign):
 	
 	for char in callsign.upper():
 		
-		if i:	hash = hash ^ ord(char)<<8
-		else:	hash = hash ^ ord(char)
-		
+		hash = ( hash ^ ord(char)<<8 ) if i else ( hash ^ ord(char) )
 		i = False if i else True
 		
 	return ( hash & 0x7fff ) 
