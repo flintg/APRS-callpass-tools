@@ -299,7 +299,8 @@ class web_daemon:
 				if not post_file == False:
 					
 					# Do the operation on the file, send it out
-					post_file = post_file.replace( "%unpopulated%", str(result['callpass']) if result['status'] else result['reason'] )
+					post_file = post_file.replace( "%callsign%", path[5:].upper() )
+					post_file = post_file.replace( "%result%", str(result['callpass']) if result['status'] else result['reason'] )
 					self.wfile.write( post_file )
 			
 			# JSON service

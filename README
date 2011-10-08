@@ -26,7 +26,7 @@ REQUIREMENTS:
 	
 	The only requirement is completely optional.
 	If you want to run the web server as a daemon, please install the python daemon module.
-		The	server can just as easily be run in a screen.
+		The server can just as easily be run in a screen.
 		
 		`sudo pip install daemon` or `sudo easy_install daemon`
 		Manual install: http://pypi.python.org/pypi/daemon
@@ -59,8 +59,8 @@ ABILITIES:
 TODO:
 	
 	* Find a license data source which is more comprehensive than the FCC. ( Do NOT suggest QRZ )
-	* Get images working when served. Don't know why, they just don't.
 	* The default code.html and error.html files need a bit better text styling.
+	* Add WSGI capability (lol, not soon)
 	* Doesn't currently identify cancelled licenses because I don't know if
 		that has a consistent entry in the database
 
