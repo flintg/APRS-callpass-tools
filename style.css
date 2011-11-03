@@ -71,8 +71,8 @@ div.info {
 	font-weight: 700;
 	letter-spacing: 5px;
 	padding-bottom: 20px;
-	color: rgb(255,250,205);
-	text-shadow: 1px 1px 0 green, -1px -1px 0 green, -1px 1px 0 green, 1px -1px 0 green;
+	color: rgb(180,120,50);
+	text-shadow: 0 0 3px gray;
 	
 }
 
