@@ -21,6 +21,11 @@ def code_in():
 	callsign = bottle.request.forms.get('callsign')
 	bottle.redirect('/code/'+callsign)
 
+@callpass.route('/code',  method='GET')
+@callpass.route('/code/', method='GET')
+def code_no():
+	bottle.redirect('/')
+
 
 @callpass.route('/code/:callsign#[a-zA-Z0-9]+#')
 def code_callsign(callsign):
