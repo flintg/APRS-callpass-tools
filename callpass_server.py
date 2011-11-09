@@ -4,10 +4,8 @@ from callpass_license import license
 # Begin WSGI app
 callpass = bottle.app()
 
-def file(filename, replacements=None):
+def file(filename):
 	f = open(filename, 'r');	page = f.read();	f.close()
-	if not replacements == None:
-		return page % replacements
 	return page
 
 
@@ -28,12 +26,9 @@ def code_in():
 def code_callsign(callsign):
 	call = license(callsign)
 	
-	if not call.status == 'OK':
-		return file('./error.html', ('Database status: '+call.status))
-	if not call.valid:
-		return file('./error.html', (call.reason))
-	else:
-		return file('./code.html', (call.hash))
+	if not call.status == 'OK':	return file('./error.html').replace('%s', 'DB: '+call.status)
+	if not call.valid:			return file('./error.html').replace('%s', call.reason)
+	return file('./code.html').replace('%s', call.hash)
 
 
 @callpass.route('/json/:callsign#[a-zA-Z0-9]+#')
