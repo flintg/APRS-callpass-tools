@@ -4,13 +4,18 @@ from callpass_license import license
 # Begin WSGI app
 callpass = bottle.app()
 
+def file(filename, replacements=None):
+	f = open(filename, 'r');	page = f.read();	f.close()
+	if not replacements == None:
+		return page % replacements
+	return page
+
+
 
 @callpass.route('/')
 def index():
-	f = open('./index.html', 'r')
-	page = f.read()
-	f.close()
-	return page
+	return file('./index.html')
+
 
 @callpass.route('/code',  method='POST')
 @callpass.route('/code/', method='POST')
@@ -24,11 +29,11 @@ def code_callsign(callsign):
 	call = license(callsign)
 	
 	if not call.status == 'OK':
-		return call.status
+		return file('./error.html', ('Database status: '+call.status))
 	if not call.valid:
-		return call.reason
+		return file('./error.html', (call.reason))
 	else:
-		return call.hash
+		return file('./code.html', (call.hash))
 
 
 @callpass.route('/json/:callsign#[a-zA-Z0-9]+#')
@@ -41,5 +46,16 @@ def json_callsign(callsign):
 	if call.status == 'OK':
 		give['valid'] = call.valid
 		if not call.valid: give['reason'] = call.reason
-	
 	return give
+
+
+# Backups for important static files.
+@callpass.route('/static/style.css')
+def style():
+	bottle.response.content_type = 'text/css; charset=UTF-8'
+	return file('./static/style.css')
+
+@callpass.route('/favicon.ico')
+def favicon():
+	bottle.response.content_type = 'image/x-icon'
+	return file('./static/favicon.ico')

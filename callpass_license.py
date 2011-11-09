@@ -33,7 +33,7 @@ class license:
 		
 		# Check validity, exit if false
 		if str(data['status']).upper() == 'VALID': self.valid = True
-		else: self.valid = False; self.reason = 'The callsign specified does not have a valid license!'; return self.valid
+		else: self.valid = False; self.reason = 'No such license!'; return self.valid
 		
 		# Check expiry
 		# Turn dates into YYYYMMDD - comparable integers
@@ -41,7 +41,7 @@ class license:
 		expdate  = int(expdate[2]+expdate[0]+expdate[1])
 		currdate = int(time.strftime('%Y%m%d', time.gmtime(time.time())))
 		
-		if currdate > expdate: self.valid = False; self.reason = 'The callsign specified does not have a valid license!'
+		if currdate > expdate: self.valid = False; self.reason = 'License is expired!'
 		
 		return self.valid
 
