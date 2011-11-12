@@ -55,6 +55,11 @@ def style():
 	bottle.response.content_type = 'text/css; charset=UTF-8'
 	return file('./static/style.css')
 
+@callpass.route('/static/mobile.css')
+def style():
+	bottle.response.content_type = 'text/css; charset=UTF-8'
+	return file('./static/mobile.css')
+
 @callpass.route('/favicon.ico')
 def favicon():
 	bottle.response.content_type = 'image/x-icon'
