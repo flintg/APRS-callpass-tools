@@ -1,4 +1,4 @@
-body{ background-color: rgb(220,220,220);  }
+body{ background-color: rgb(220,220,220); background-image: url("./background_gradient.png"); }
 
 #deadcenter{
 	background-color: rgb(255,250,205);
