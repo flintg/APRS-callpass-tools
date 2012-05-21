@@ -77,5 +77,5 @@ class license:
 			hash = ( hash ^ ord(char)<<8 ) if i else ( hash ^ ord(char) )
 			i = False if i else True
 			
-		self.hash = str( hash & 0x7fff )
-		return self.hash
+		self.code = str( hash & 0x7fff )
+		return self.code

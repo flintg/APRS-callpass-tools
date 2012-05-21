@@ -1,3 +1,4 @@
+$def with (callsign, code)
 <!DOCTYPE html>
 <html>
 <head>
@@ -9,8 +10,8 @@
 <body>
 	<div id="deadcenter">
 		<h1><a href="/">Your <strong>APRS</strong> <i>passcode</i></a></h1>
-		<div class="info">%s</div>
-		<div id="sub"><a href="/">Again, again!</a> &bull; <a href="/json/%callsign%">Fetch JSON</a><span class="hide"> &bull; </span><a href="https://github.com/zamabe/APRS-callpass-tools" class="floatright">Source</a></div>
+		<div class="info">$(code)</div>
+		<div id="sub"><a href="/">Again, again!</a> &bull; <a href="/json/$(callsign)">Fetch JSON</a><span class="hide"> &bull; </span><a href="https://github.com/zamabe/APRS-callpass-tools" class="floatright">Source</a></div>
 	</div>
 </body>
 </html>
