@@ -1,4 +1,5 @@
 import os
+import re
 import web
 from tools import license
 
@@ -18,10 +19,11 @@ class code:
 	def POST(self, _):
 		
 		post = web.input()
+		filter = re.compile("^[a-zA-Z0-9\-\/]+$")
 		
 		# check the callsign for bullshit
 		if 'callsign' not in post.keys() \
-		or post['callsign'] == 'dicks': 
+		or not filter.match(post['callsign']):
 			raise web.seeother('/#invalid-callsign')
 		
 		raise web.seeother( "/code/%s" % (post['callsign'],) )
@@ -38,6 +40,7 @@ class code:
 class json:
 	
 	def GET(self, callsign):
+		web.header("Content-Type", "application/json")
 		call = license(callsign)
 		return call.json
 
