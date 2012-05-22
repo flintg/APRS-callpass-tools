@@ -39,7 +39,12 @@ class license:
 		api_url = 'http://callook.info/%s/json'
 		page = urllib.urlopen( api_url % urllib.quote(self.callsign) );
 		data = page.read();
-		data = json.loads(data);
+		try:
+			data = json.loads(data);
+		except ValueError:
+			self.valid = False
+			self.reason = "Invalid callsign"
+			return self.valid
 		
 		# Something is up server-side. Discontinue.
 		if str(data['status']).upper() not in ['VALID', 'INVALID']:
