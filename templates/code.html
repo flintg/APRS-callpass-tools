@@ -1,0 +1,17 @@
+$def with (callsign, code)
+<!DOCTYPE html>
+<html>
+<head>
+ <title>APRS passcode generator</title>
+ <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+ <link href="/static/css/style.css" rel="stylesheet" type="text/css" media="all and (min-width: 640px)">
+ <link href="/static/css/mobile.css" rel="stylesheet" type="text/css" media="all and (max-width: 640px)">
+</head>
+<body>
+	<div id="deadcenter">
+		<h1><a href="/">Your <strong>APRS</strong> <i>passcode</i></a></h1>
+		<div class="info">$(code)</div>
+		<div id="sub"><a href="/">Again, again!</a> &bull; <a href="/json/$(callsign)">Fetch JSON</a><span class="hide"> &bull; </span><a href="https://github.com/zamabe/APRS-callpass-tools" class="floatright">Source</a></div>
+	</div>
+</body>
+</html>
